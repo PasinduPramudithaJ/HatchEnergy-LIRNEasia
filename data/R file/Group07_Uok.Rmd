@@ -1,0 +1,119 @@
+---
+title: "hatch"
+author: "Maneesha"
+date: "2024-12-08"
+output: html_document
+---
+
+```{r}
+df<-read.csv("C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/non_smart_meter_data.csv")
+head(df)
+
+# Load necessary library
+library(tidyr)
+
+# Reshape the data from long to wide format
+reshaped_data <- pivot_wider(
+  df,
+  names_from = month,        # Column to create new column names
+  values_from = consumption  # Column to populate values
+)
+
+# View the reshaped data
+head(reshaped_data)
+
+new <- data.frame(reshaped_data)
+new<-new[,-1]
+head(new)
+ #Convert all columns to numeric
+new[] <- lapply(new, function(x) as.numeric(as.character(x)))
+str(new)
+reshaped_data$avg <- rowMeans(new)
+
+non_smart <- data.frame(reshaped_data$household_ID,reshaped_data$avg)
+
+# Optionally save to a CSV file
+write.csv(non_smart, "C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/avg_nonsmart.csv", row.names = TRUE)
+
+colSums(is.na(output))
+
+output
+
+
+
+
+
+```
+
+```{r}
+
+library(dplyr)
+df<-read.csv("C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/no_ours_stay.csv")
+head(df)
+
+# Summing consumption by Household_ID
+summed_data <- df %>%
+  group_by(df.household_ID) %>%
+  summarise(NoOfHoursStay = sum(df.no_of_hours_stayed_at_home_during_last_week, na.rm = TRUE))
+
+head(summed_data)
+
+write.csv(summed_data, "C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/no_hours_stay.csv", row.names = TRUE)
+```
+
+```{r}
+df2 <- read.csv("C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/wattage_of_ac.csv")
+head(df2)
+
+df2 <- na.omit(df2)
+
+# Summing consumption by Household_ID
+summed_data2 <- df2 %>%
+  group_by(df1.household_ID) %>%
+  summarise(TotWatageAC = sum(df1.wattage_of_the_ac, na.rm = TRUE))
+
+head(summed_data2)
+
+write.csv(summed_data2, "C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/summed_wattage_AC.csv", row.names = TRUE)
+```
+
+```{r}
+df3 <- read.csv("C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/appliances_no_of_hours_used_during_last_week.csv")
+head(df3)
+
+df3 <- na.omit(df3)
+
+# Summing consumption by Household_ID
+summed_data3 <- df3 %>%
+  group_by(df2.household_ID) %>%
+  summarise(TotWatageAC = sum(df2.no_of_hours_used_during_last_week, na.rm = TRUE))
+
+head(summed_data3)
+
+write.csv(summed_data3, "C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/summed_appliances.csv", row.names = TRUE)
+```
+
+```{r}
+df4 <- read.csv("C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/non_smart_meter_data.csv")
+head(df4)
+
+# Convert the Date column to a Date object
+df4 <- df4 %>%
+  mutate(Date = as.Date(month, format = "%m-%d-%Y"))
+
+# Extract the latest reading for each household
+latest_readings <- df4 %>%
+  group_by(household_ID) %>%
+  filter(month == max(Date)) %>%
+  ungroup()
+
+# Save the filtered data to a CSV file
+write.csv(latest_readings, "C:/Users/Maneesha/Dropbox/My PC (DESKTOP-HBJAPG5)/Desktop/Hack/last_month_non_smart_data1.csv", row.names = TRUE)
+
+head(latest_readings)
+```
+
+
+
+
+
