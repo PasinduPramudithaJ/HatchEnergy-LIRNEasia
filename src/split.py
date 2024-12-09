@@ -3,7 +3,7 @@ import os
 from sklearn.model_selection import train_test_split
 
 # Path to your CSV file
-input_csv_path = "data/cleandata/merged_cleaned_data.csv"
+input_csv_path = "data/cleandata/merged_output.csv"
 
 # Load the data
 data = pd.read_csv(input_csv_path)

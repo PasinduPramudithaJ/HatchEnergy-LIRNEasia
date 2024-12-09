@@ -1,70 +1,69 @@
 import torch
 import pandas as pd
-import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-import torch.nn as nn
 
-# Define the RNN model (same as during training)
-class RNNModel(nn.Module):
-    def __init__(self, input_size, hidden_size):
+# Define the RNN model class
+class RNNModel(torch.nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(RNNModel, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.fc_consumption = nn.Linear(hidden_size, 1)  # For consumption prediction
+        self.rnn = torch.nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = torch.nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        _, (hidden, _) = self.lstm(x)  # Only use the final hidden state
-        hidden = hidden[-1]
-        consumption = self.fc_consumption(hidden)  # Predict consumption
-        return consumption
+        h0 = torch.zeros(num_layers, x.size(0), hidden_size).to(x.device)  # Initialize hidden state
+        out, _ = self.rnn(x, h0)
+        out = self.fc(out[:, -1, :])  # Use the last output of the sequence
+        return out
 
+# Model parameters
+input_size = 5  # Number of input features (e.g., boiling_factor, NoOfHoursStay, etc.)
+hidden_size = 64
+num_layers = 2
+output_size = 1
 
-# Load the trained model architecture and state_dict
-input_size = 5  # Number of features used in the model
-hidden_size = 64  # Same as used during training
-model = RNNModel(input_size, hidden_size)  # Define the model architecture
+# Load the trained model
+model = RNNModel(input_size, hidden_size, num_layers, output_size)
+model.load_state_dict(torch.load('rnn_model.pth'))  # Load model weights from the saved file
+model.eval()  # Set the model to evaluation mode
 
-# Load the model weights
-model.load_state_dict(torch.load('consumption_rnn_model.pth'))
-model.eval()
+# Load and preprocess the input data
+csv_path = './data/test/test.csv'  # Path to your CSV file
+data = pd.read_csv(csv_path)
 
-# Load the test data (replace with your actual file path)
-test_file_path = 'data/test/test.csv'  # Replace with your test data file path
-test_data = pd.read_csv(test_file_path)
+# Handle missing values by filling with median (optional)
+data['SumOfAppliances'] = data['SumOfAppliances'].fillna(data['SumOfAppliances'].median())
+data['TotWatageAC'] = data['TotWatageAC'].fillna(data['TotWatageAC'].median())
 
-# Define features (same as during training)
-features = ['boiling_factor', 'NoOfHoursStay', 'no_of_household_members', 'Appliances', 'TotWatageAC']
+# Select features to be used as input to the model
+features = ['boiling_factor', 'NoOfHoursStay', 'no_of_household_members', 'SumOfAppliances', 'TotWatageAC']
+X = data[features].values
 
-# Extract features from the test data
-X_test = test_data[features].values
-
-# Normalize features using the same scaler as during training
+# Normalize the features using MinMaxScaler
 scaler = MinMaxScaler()
-X_test_scaled = scaler.fit_transform(X_test)
+X_scaled = scaler.fit_transform(X)
 
-# Convert to PyTorch tensor
-X_test_tensor = torch.tensor(X_test_scaled, dtype=torch.float32).unsqueeze(1)  # Add a dimension for timesteps
+# Convert the features to a PyTorch tensor and add a sequence dimension
+X_tensor = torch.tensor(X_scaled, dtype=torch.float32).unsqueeze(1)  # Add sequence dimension (batch_size, seq_len, input_size)
 
-# Predict consumption using the trained model
-with torch.no_grad():
-    consumption_pred = model(X_test_tensor)
+# Make predictions using the trained model
+with torch.no_grad():  # Disable gradient computation for inference
+    predictions = model(X_tensor).squeeze(1).numpy()  # Get the predictions for all rows
 
-# Convert predictions to numpy
-consumption_pred_np = consumption_pred.numpy()
+# Add the predictions as a new column in the DataFrame
+data['Predicted_Consumption'] = predictions
 
-# Define a threshold for efficient vs inefficient consumption (e.g., 100 kWh)
-threshold = 100  # This value is an example, adjust based on your problem or data
+# Define the deviation threshold (based on your domain knowledge, adjust as needed)
+deviation_threshold = 10  # You can adjust this threshold
 
-# Classify as efficient or not based on the threshold
-efficiency_pred = ["Efficient" if consumption <= threshold else "Not Efficient" for consumption in consumption_pred_np]
+# Calculate the absolute deviation between Actual Consumption and Predicted Consumption
+data['Deviation'] = abs(data['Consumption'] - data['Predicted_Consumption'])
 
-# Save predictions and efficiency status to a CSV file for review
-predictions_df = pd.DataFrame({
-    'Predicted_Consumption': consumption_pred_np.flatten(),
-    'Efficiency_Status': efficiency_pred
-})
-predictions_df.to_csv('predictions_with_efficiency.csv', index=False)
-print("Predictions with efficiency status saved to 'predictions_with_efficiency.csv'.")
+# Classify as 'Efficient' or 'Inefficient' based on the deviation
+data['Efficiency'] = data['Deviation'].apply(lambda x: 'Efficient' if x <= deviation_threshold else 'Inefficient')
 
-# Print out some example predictions with efficiency status
-for i in range(min(5, len(consumption_pred_np))):  # Show up to 5 predictions
-    print(f"Predicted Consumption for sample {i+1}: {consumption_pred_np[i][0]}, Efficiency: {efficiency_pred[i]}")
+# Print the results: Actual Consumption, Predicted Consumption, Deviation, Efficiency
+print(data[['Consumption', 'Predicted_Consumption', 'Deviation', 'Efficiency']])
+
+# Optionally, save the results to a new CSV file
+data.to_csv('predicted_consumption_results.csv', index=False)
+print("Predictions saved to 'predicted_consumption_results.csv'.")
